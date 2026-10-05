@@ -1,58 +1,54 @@
-import { Vue, Component, Prop, Provide, Inject } from "vue-property-decorator"
-import { MenubarDactivateEvent, once } from '../event'
-import { MenuStyle, MENU_STYLE_KEY } from "../style"
-
+import { defineComponent, inject, onBeforeUnmount, provide, ref } from 'vue'
+import { EventBus, MenubarDactivateEvent, MenubaritemActivateEvent, once } from '../event'
+import { MENU_STYLE_KEY, type MenuStyle } from '../style'
+import type { MenubaritemType } from '../menubaritem/script'
 
 export const MENUBAR_KEY = '@hscmap/vue-menu/menubar'
-
-
-@Component({
-    provide() {
-        return { [MENUBAR_KEY]: this }
-    }
-})
-export class MenubarType extends Vue {
-    @Inject(MENU_STYLE_KEY)
-    menuStyle!: MenuStyle
-
-    active = false
-
-    deactivate() {
-        this.active = false
-        this.$emit(MenubarDactivateEvent.type, new MenubarDactivateEvent())
-        this.clearCancellers()
-    }
-
-    beforeDestroy() {
-        this.clearCancellers()
-    }
-
-    private cancelMouseup?: () => void
-    private cancelMousedown?: () => void
-
-    private mousedown(mousedown: MouseEvent) {
-        if (this.active)
-            return this.deactivate()
-        this.active = true
-        this.clearCancellers()
-        this.cancelMouseup = once(document, 'mouseup', mouseup => {
-            this.cancelMouseup = undefined
-            if (mouseup.timeStamp - mousedown.timeStamp >= 500)
-                this.deactivate()
-            else {
-                this.cancelMousedown = once(document, 'mousedown', () => {
-                    this.cancelMousedown = undefined
-                    this.deactivate()
-                })
-            }
-        })
-    }
-
-    private clearCancellers() {
-        this.cancelMouseup && this.cancelMouseup()
-        this.cancelMousedown && this.cancelMousedown()
-    }
-
-    @Prop({ default: 0 })
-    paddingTop!: number
+export interface MenubarType {
+    readonly active: boolean
+    readonly paddingTop: number
+    deactivate(): void
+    activateItem(item: MenubaritemType): void
+    on<T>(event: string, handler: (value: T) => void): () => void
 }
+export const MenubarType = defineComponent({
+    name: 'HscMenubar',
+    props: { paddingTop: { type: Number, default: 0 } },
+    emits: ['menubardeactivate'],
+    setup(props, { emit }) {
+        const menuStyle = inject<MenuStyle>(MENU_STYLE_KEY)!
+        const active = ref(false)
+        const events = new EventBus()
+        let cancelMouseup: (() => void) | undefined
+        let cancelMousedown: (() => void) | undefined
+        function clearCancellers() {
+            cancelMouseup?.(); cancelMousedown?.()
+            cancelMouseup = cancelMousedown = undefined
+        }
+        function deactivate() {
+            active.value = false
+            const event = new MenubarDactivateEvent()
+            events.emit(MenubarDactivateEvent.type, event)
+            emit('menubardeactivate', event)
+            clearCancellers()
+        }
+        function mousedown(down: MouseEvent) {
+            if (active.value) return deactivate()
+            active.value = true
+            clearCancellers()
+            cancelMouseup = once<MouseEvent>(document, 'mouseup', up => {
+                cancelMouseup = undefined
+                if (up.timeStamp - down.timeStamp >= 500) deactivate()
+                else cancelMousedown = once(document, 'mousedown', () => { cancelMousedown = undefined; deactivate() })
+            })
+        }
+        const api: MenubarType = {
+            get active() { return active.value }, get paddingTop() { return props.paddingTop },
+            deactivate, on: events.on.bind(events),
+            activateItem(item) { events.emit(MenubaritemActivateEvent.type, new MenubaritemActivateEvent(item)) },
+        }
+        provide(MENUBAR_KEY, api)
+        onBeforeUnmount(() => { clearCancellers(); events.clear() })
+        return { menuStyle, active, deactivate, mousedown, on: api.on, activateItem: api.activateItem }
+    },
+})

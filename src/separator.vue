@@ -4,10 +4,11 @@
 </template>
 
 <script lang="ts">
-import { MENU_STYLE_KEY } from "./style";
-export default {
-    inject: { menuStyle: MENU_STYLE_KEY }
-}
+import { defineComponent, inject } from 'vue'
+import { MENU_STYLE_KEY, type MenuStyle } from './style'
+export default defineComponent({
+    setup() { return { menuStyle: inject<MenuStyle>(MENU_STYLE_KEY)! } }
+})
 </script>
 
 

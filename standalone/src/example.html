@@ -5,17 +5,18 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <meta charset="utf-8" />
     <title>VueMenu standalone</title>
-    <script src="https://cdn.jsdelivr.net/npm/vue@2.5.2/dist/vue.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/vue@3.5.43/dist/vue.global.js"></script>
     <script src="./vue-menu-standalone.js"></script>
     <script>
         window.addEventListener('load', e => {
-            new Vue({
-                el: document.getElementById('root'),
-                data: {
+            const app = Vue.createApp({
+                data() { return {
                     checked: true,
                     alert: function (msg) { window.alert(msg) }
-                }
+                } }
             })
+            app.use(VueMenu)
+            app.mount('#root')
         })
     </script>
     <style>

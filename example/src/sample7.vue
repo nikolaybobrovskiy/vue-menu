@@ -4,7 +4,7 @@
             <div class="box" style="padding: 1em;">
                 Secondary click here
             </div>
-            <template slot="contextmenu">
+            <template #contextmenu>
                 <hsc-menu-item label="MenuItem 1" />
                 <hsc-menu-item label="MenuItem 2" />
             </template>

@@ -1,5 +1,5 @@
-import { MenuitemType } from "./menuitem/script"
-import { MenubaritemType } from "./menubaritem/script";
+import type { MenuitemType } from "./menuitem/script"
+import type { MenubaritemType } from "./menubaritem/script";
 
 
 export class MenuitemActivateEvent {
@@ -34,4 +34,18 @@ export function once<T extends Event>(target: HTMLElement | Document, type: stri
     const off = () => { target.removeEventListener(type, h) }
     target.addEventListener(type, h)
     return off
+}
+// Instance-local subscriptions replace the removed Vue 2 instance event emitter.
+export class EventBus {
+    private listeners = new Map<string, Set<(value: any) => void>>()
+    on<T>(event: string, handler: (value: T) => void): () => void {
+        let handlers = this.listeners.get(event)
+        if (!handlers) this.listeners.set(event, handlers = new Set())
+        handlers.add(handler)
+        return () => { handlers!.delete(handler) }
+    }
+    emit(event: string, value: unknown) {
+        this.listeners.get(event)?.forEach(handler => handler(value))
+    }
+    clear() { this.listeners.clear() }
 }

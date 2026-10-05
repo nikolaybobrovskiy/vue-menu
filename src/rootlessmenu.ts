@@ -1,89 +1,63 @@
-import { Component, Vue, Prop } from "vue-property-decorator"
-import Menu from "./menu/index.vue"
-import { MenuType, Direction } from "./menu/script"
-import { once } from "./event"
-import { MENUBARITEM_KEY } from "./menubaritem/script";
+import { computed, defineComponent, onBeforeUnmount, provide, ref, watch, type PropType } from 'vue'
+import Menu from './menu/index.vue'
+import { type MenuType, type Direction } from './menu/script'
+import { once } from './event'
+import { MENUBARITEM_KEY } from './menubaritem/script'
 
+export interface RootlessMenu { close(): void }
 export const openedRootlessMenus: RootlessMenu[] = []
+export type MenuPosition = (event: MouseEvent) => { x: number, y: number, direction: Direction }
 
-function closeOthres() {
-    while (openedRootlessMenus.length > 0) {
-        openedRootlessMenus.pop()!.close()
-    }
-}
-
-@Component({
-    components: { XMenu: Menu },
-    provide() { return { [MENUBARITEM_KEY]: undefined } },
-})
-export class RootlessMenu extends Vue {
-    @Prop({ type: Function })
-    position!: (e: MouseEvent) => { x: number, y: number, direction: Direction }
-
-    @Prop({ type: Number })
-    menuZIndex?: number
-
-    get menuStyle(): Partial<CSSStyleDeclaration> {
-        return this.menuZIndex == undefined ? {} : { zIndex: String(this.menuZIndex) }
-    }
-
-    private cancelMouseup?: () => void
-    private cancelMousedown?: () => void
-
-    private menu() {
-        return this.$refs.menu as MenuType
-    }
-
-    beforeDestroy() {
-        this.clearCancellers()
-    }
-
-    openMenu(mousedown: MouseEvent) {
-        mousedown.preventDefault()
-        closeOthres()
-        openedRootlessMenus.push(this)
-        this.clearCancellers()
-
-        if (this.menu().isOpen) {
-            return this.close()
-        }
-
-        this.cancelMouseup = once(document, 'mouseup', mouseup => {
-            this.cancelMouseup = undefined
-            if (mouseup.timeStamp - mousedown.timeStamp >= 500)
-                this.close()
-            else {
-                this.cancelMousedown = once(document, 'mousedown', (e: MouseEvent) => {
-                    this.cancelMousedown = undefined
-                    if (!isContextmenu(e))
-                        this.close()
-                })
+export function createRootlessMenu(name: string, defaultPosition: MenuPosition) {
+    return defineComponent({
+        name,
+        components: { XMenu: Menu },
+        props: {
+            position: { type: Function as PropType<MenuPosition>, default: defaultPosition },
+            menuZIndex: Number,
+        },
+        emits: ['open', 'close'],
+        setup(props, { emit }) {
+            provide(MENUBARITEM_KEY, undefined)
+            const menu = ref<MenuType>()
+            let cancelMouseup: (() => void) | undefined
+            let cancelMousedown: (() => void) | undefined
+            function clearCancellers() {
+                cancelMouseup?.(); cancelMousedown?.()
+                cancelMouseup = cancelMousedown = undefined
             }
-        })
-
-        const position = this.position(mousedown)
-        this.menu().open(position.x, position.y, position.direction)
-    }
-
-    close() {
-        this.clearCancellers()
-        const menu = this.menu()
-        menu && menu.close(true)
-    }
-
-    private clearCancellers() {
-        this.cancelMouseup && this.cancelMouseup()
-        this.cancelMousedown && this.cancelMousedown()
-    }
-
-    mounted() {
-        this.$watch(() => this.menu().isOpen, isOpen => {
-            this.$emit(isOpen ? 'open' : 'close')
-        })
-    }
-}
-
-
-function isContextmenu(e: MouseEvent) {
-    return e.button == 2 || e.ctrlKey
+            const api: RootlessMenu = { close }
+            function removeOpened() {
+                const index = openedRootlessMenus.indexOf(api)
+                if (index >= 0) openedRootlessMenus.splice(index, 1)
+            }
+            function close() { clearCancellers(); removeOpened(); menu.value?.close(true) }
+            function openMenu(down: MouseEvent) {
+                down.preventDefault()
+                const wasOpen = !!menu.value?.isOpen
+                while (openedRootlessMenus.length) openedRootlessMenus.pop()!.close()
+                clearCancellers()
+                if (wasOpen) return close()
+                openedRootlessMenus.push(api)
+                cancelMouseup = once<MouseEvent>(document, 'mouseup', up => {
+                    cancelMouseup = undefined
+                    if (up.timeStamp - down.timeStamp >= 500) close()
+                    else cancelMousedown = once<MouseEvent>(document, 'mousedown', event => {
+                        cancelMousedown = undefined
+                        if (!(event.button === 2 || event.ctrlKey)) close()
+                    })
+                })
+                const position = props.position(down)
+                menu.value?.open(position.x, position.y, position.direction)
+            }
+            watch(() => menu.value?.isOpen, (isOpen, previous) => {
+                if (isOpen === undefined || previous === undefined && !isOpen) return
+                if (!isOpen) { clearCancellers(); removeOpened() }
+                emit(isOpen ? 'open' : 'close')
+            })
+            onBeforeUnmount(close)
+            return { menu, openMenu, close,
+                menuStyle: computed(() => props.menuZIndex === undefined ? {} : { zIndex: String(props.menuZIndex) }) }
+        },
+    })
 }

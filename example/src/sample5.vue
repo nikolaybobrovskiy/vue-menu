@@ -24,7 +24,7 @@
 
 <script lang="ts">
 import { StyleFactory } from '../../src'
-import Vue from 'vue'
+import { defineComponent } from 'vue'
 
 const active = {
     backgroundColor: '#436f7c'

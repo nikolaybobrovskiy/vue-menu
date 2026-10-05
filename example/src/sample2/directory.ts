@@ -21,16 +21,16 @@ for (const path of paths) {
 }
 
 
-import Vue, * as vue from 'vue'
+import { defineComponent, h, type VNode } from 'vue'
 import { Menuitem } from "../../../src"
 
 
-function menuitem(h: vue.CreateElement, entry: Entry): vue.VNode {
+function menuitem(entry: Entry): VNode {
     return Object.keys(entry.children).length > 0 ?
         h(
             Menuitem,
-            { props: { label: entry.label } },
-            Object.keys(entry.children).sort().map(name => menuitem(h, entry.children[name]!))
+            { label: entry.label },
+            { default: () => Object.keys(entry.children).sort().map(name => menuitem(entry.children[name]!)) }
         ) :
         h(
             Menuitem,
@@ -39,10 +39,10 @@ function menuitem(h: vue.CreateElement, entry: Entry): vue.VNode {
 }
 
 
-export default {
-    render(h: vue.CreateElement) {
+export default defineComponent({
+    render() {
         return h('div', Object.keys(root.children).map(k =>
-            menuitem(h, root.children[k]!)
+            menuitem(root.children[k]!)
         ))
     }
-} as vue.Component
+})

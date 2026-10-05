@@ -9,23 +9,9 @@
 
 
 <script lang="ts">
-import { Direction } from "./menu/script";
-import { RootlessMenu } from "./rootlessmenu";
-import { Component, Vue, Prop } from "vue-property-decorator";
-
-
-@Component
-export default class ContextmenuType extends RootlessMenu {
-    @Prop({ type: Function, default: defaultPosition })
-    position!: (e: MouseEvent) => { x: number, y: number, direction: Direction }
+import { createRootlessMenu, type MenuPosition } from './rootlessmenu'
+const defaultPosition: MenuPosition = e => {
+    return { x: e.clientX, y: e.clientY, direction: 'right' }
 }
-
-
-function defaultPosition(e: MouseEvent) {
-    return {
-        x: e.clientX,
-        y: e.clientY,
-        direction: 'right' as Direction
-    }
-}
+export default createRootlessMenu('Hsccontextmenu', defaultPosition)
 </script>

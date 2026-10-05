@@ -1,197 +1,132 @@
-import * as keybind from "@hscmap/keybind";
-import { Component, Inject, Prop, Vue } from "vue-property-decorator";
-import { MenuCloseEvent, MenuitemActivateEvent } from "../event";
-import { sync } from "../global";
-import { Keybinder } from "../keybinder";
-import Menu from "../menu/index.vue";
-import { MenuType, PADDING, PARENT_MENU_KEY } from "../menu/script";
-import { MenubaritemType, MENUBARITEM_KEY } from "../menubaritem/script";
-import { MenuStyle, MENU_STYLE_KEY } from "../style";
+import * as keybind from '@hscmap/keybind'
+import { computed, defineComponent, inject, onBeforeUnmount, ref, shallowRef, type PropType } from 'vue'
+import { MenuCloseEvent, MenuitemActivateEvent } from '../event'
+import { sync } from '../global'
+import { Keybinder } from '../keybinder'
+import Menu from '../menu/index.vue'
+import { type MenuType, PADDING, PARENT_MENU_KEY } from '../menu/script'
+import { type MenubaritemType, MENUBARITEM_KEY } from '../menubaritem/script'
+import { type MenuStyle, type Style, MENU_STYLE_KEY } from '../style'
 
+export interface MenuitemType {
+    readonly parentMenu: MenuType
+    readonly $el: HTMLElement
+    fire(): void
+}
 
-@Component({
+export const MenuitemType = defineComponent({
+    name: 'HscMenuitem',
     components: { XMenu: Menu, XKeybinder: Keybinder },
-    model: {
-        prop: 'vModel',
-    }
+    props: {
+        label: { type: String, default: '' },
+        checked: { type: Boolean, default: false },
+        disabled: { type: Boolean, default: false },
+        keybind: String,
+        sync: { type: Boolean, default: false },
+        type: { type: String as PropType<'radio' | 'checkbox'>, default: 'checkbox' },
+        modelValue: { type: null as unknown as PropType<any>, default: undefined },
+        value: { type: null as unknown as PropType<any>, default: undefined },
+    },
+    emits: ['click', 'update:modelValue'],
+    setup(props, { emit, slots }) {
+        const parentMenu = inject<MenuType>(PARENT_MENU_KEY)!
+        const menuStyle = inject<MenuStyle>(MENU_STYLE_KEY)!
+        const menubaritem = inject<MenubaritemType | undefined>(MENUBARITEM_KEY, undefined)
+        const childMenu = ref<MenuType>()
+        const element = shallowRef<HTMLElement>()
+        const hover = ref(false)
+        let disposed = false
+        const timers = new Map<ReturnType<typeof setTimeout>, () => void>()
+        if (props.modelValue !== undefined) {
+            assert(['radio', 'checkbox'].includes(props.type), 'prop :type must be one of "radio" or "checkbox"')
+            if (props.type === 'checkbox') assert(Array.isArray(props.modelValue) || typeof props.modelValue === 'boolean', 'v-model must be an array or boolean')
+            else assert(props.value !== undefined, 'radio value must be set')
+        }
+        function fire() {
+            if (disposed || props.disabled) return
+            emit('click')
+            if (props.type === 'radio') emit('update:modelValue', props.value)
+            else if (props.modelValue !== undefined) {
+                if (Array.isArray(props.modelValue)) {
+                    const copy = props.modelValue.slice()
+                    const index = copy.indexOf(props.value)
+                    if (index >= 0) copy.splice(index, 1)
+                    else copy.push(props.value)
+                    emit('update:modelValue', copy)
+                } else emit('update:modelValue', !props.modelValue)
+            }
+            menubaritem?.onMenuiatemFired()
+        }
+        const self: MenuitemType = { parentMenu, get $el() { return element.value! }, fire }
+        const offActivate = parentMenu.on<MenuitemActivateEvent>(MenuitemActivateEvent.type, event => {
+            if (event.menuitem !== self) childMenu.value?.close(false)
+        })
+        const offClose = parentMenu.on<MenuCloseEvent>(MenuCloseEvent.type, () => {
+            hover.value = false
+            childMenu.value?.close(true)
+        })
+        function activate() {
+            parentMenu.activateItem(self)
+            if (childMenu.value && element.value) {
+                const rect = element.value.getBoundingClientRect()
+                const direction = parentMenu.submenuDirection
+                childMenu.value.open(rect[direction], rect.top - PADDING, direction)
+            }
+        }
+        function sleep(duration: number) {
+            return new Promise<void>(resolve => {
+                const timer = setTimeout(() => { timers.delete(timer); resolve() }, duration)
+                timers.set(timer, resolve)
+            })
+        }
+        async function flash() {
+            if (menuStyle.animation) {
+                for (let i = 0; i < 3 && !disposed; ++i) {
+                    hover.value = false
+                    await sleep(50)
+                    if (disposed) return
+                    hover.value = true
+                    await sleep(50)
+                }
+            }
+            hover.value = false
+        }
+        function mouseenter() {
+            if (!props.disabled) void sync.lock(async () => {
+                if (!disposed && parentMenu.isOpen) { hover.value = true; activate() }
+            })
+        }
+        function mouseleave() {
+            void sync.lock(async () => { if (!disposed && parentMenu.isOpen) hover.value = false })
+        }
+        function mouseup(event: MouseEvent) {
+            if (!slots.body && hover.value && !props.disabled) void sync.lock(async () => {
+                if (!disposed && parentMenu.isOpen && !slots.default) {
+                    if (!props.sync) await flash()
+                    if (disposed) return
+                    fire()
+                    if (!event.shiftKey) parentMenu.close(true, true)
+                }
+            })
+        }
+        onBeforeUnmount(() => {
+            disposed = true
+            offActivate(); offClose()
+            timers.forEach((resolve, timer) => { clearTimeout(timer); resolve() })
+            timers.clear()
+        })
+        const active = computed(() => hover.value || !!childMenu.value?.isOpen)
+        const showCheckmark = computed(() => {
+            if (props.type === 'radio') return props.modelValue == props.value
+            if (props.modelValue !== undefined) return Array.isArray(props.modelValue) ? props.modelValue.includes(props.value) : props.modelValue
+            return props.checked
+        })
+        return { childMenu, element, self, parentMenu, active, showCheckmark, fire, mouseenter, mouseleave, mouseup,
+            keybindHTML: computed(() => props.keybind ? keybind.html(props.keybind) : ''),
+            style: computed<Style>(() => ({ ...(active.value ? menuStyle.active : {}), ...(props.disabled ? menuStyle.disabled : {}) })) }
+    },
 })
-export class MenuitemType extends Vue {
-    @Inject(PARENT_MENU_KEY)
-    parentMenu!: MenuType
-
-    @Inject(MENU_STYLE_KEY)
-    menuStyle!: MenuStyle
-
-    @Inject(MENUBARITEM_KEY)
-    menubaritem?: MenubaritemType
-
-    @Prop({ type: String, default: "" })
-    label!: string
-
-    @Prop({ type: Boolean, default: false })
-    checked!: boolean
-
-    @Prop({ type: Boolean, default: false })
-    disabled!: boolean
-
-    @Prop({ type: String })
-    keybind?: string
-
-    @Prop({ default: false })
-    sync!: boolean
-
-    @Prop({ default: 'checkbox' })
-    type!: 'radio' | 'checkbox'
-
-    @Prop()
-    vModel?: any[] | boolean
-
-    @Prop()
-    value!: any
-
-    created() {
-        // validate props
-        if (this.vModel !== undefined) {
-            assert(['radio', 'checkbox'].indexOf(this.type) >= 0, 'prop :type must be one of "radio" or "checkbox"')
-            if (this.type == 'checkbox') {
-                assert(Array.isArray(this.vModel) || typeof (this.vModel) == 'boolean', 'v-model must be an array or boolean')
-            }
-            else if (this.type == 'radio') {
-                assert(this.value !== undefined, 'v-model must be set')
-            }
-        }
-    }
-
-    get keybindHTML() {
-        return this.keybind && keybind.html(this.keybind)
-    }
-
-    get style() {
-        const { active, disabled } = this.menuStyle
-        return { ...(this.active ? active : {}), ...(this.disabled ? disabled : {}) }
-    }
-
-    get showCheckmark() {
-        if (this.type == 'radio')
-            return this.vModel == this.value
-        if (this.type == 'checkbox' && this.vModel !== undefined) {
-            if (Array.isArray(this.vModel))
-                return this.vModel.indexOf(this.value) >= 0
-            else
-                return this.vModel
-        }
-        return this.checked
-    }
-
-    mounted() {
-        this.parentMenu.$on(MenuitemActivateEvent.type, (e: MenuitemActivateEvent) => {
-            e.menuitem != this && this.deactivate()
-        })
-        this.parentMenu.$on(MenuCloseEvent.type, (e: MenuCloseEvent) => {
-            this.hover = false
-            const childMenu = this.childMenu()
-            childMenu && childMenu.close(true)
-        })
-    }
-
-    private hover = false
-
-    private get active() {
-        const childMenu = this.childMenu()
-        return this.hover || childMenu && childMenu.isOpen
-    }
-
-    private activate() {
-        this.parentMenu.$emit(MenuitemActivateEvent.type, new MenuitemActivateEvent(this))
-        const childMenu = this.childMenu()
-        if (childMenu) {
-            const rect = this.$el.getBoundingClientRect()
-            const submenuDirection = this.parentMenu.submenuDirection
-            childMenu.open(rect[submenuDirection], rect.top - PADDING, submenuDirection)
-        }
-    }
-
-    private deactivate() {
-        const childMenu = this.childMenu()
-        childMenu && childMenu.close(false)
-    }
-
-    fire() {
-        this.$emit('click')
-        if (this.type == 'radio') {
-            this.$emit('input', this.value)
-        }
-        else if (this.type == 'checkbox' && this.vModel !== undefined) {
-            if (Array.isArray(this.vModel)) {
-                const i = this.vModel.indexOf(this.value)
-                const copy = this.vModel.slice()
-                if (i >= 0) {
-                    copy.splice(i, 1)
-                }
-                else {
-                    copy.push(this.value)
-                }
-                this.$emit('input', copy)
-            }
-            else {
-                this.$emit('input', !this.vModel)
-            }
-        }
-        this.menubaritem && this.menubaritem.onMenuiatemFired()
-    }
-
-    private async flash() {
-        if (this.menuStyle.animation) {
-            const d = 50
-            for (let i = 0; i < 3; ++i) {
-                this.hover = false
-                await sleep(d)
-                this.hover = true
-                await sleep(d)
-            }
-        }
-        this.hover = false
-    }
-
-    private childMenu() {
-        const childMenu = this.$refs.childMenu
-        return childMenu ? (childMenu as MenuType) : undefined
-    }
-
-    mouseenter(e: MouseEvent) {
-        this.disabled || sync.lock(async () => {
-            if (this.parentMenu.isOpen) {
-                this.hover = true
-                this.activate()
-            }
-        })
-    }
-
-    mouseleave(e: MouseEvent) {
-        sync.lock(async () => {
-            this.parentMenu.isOpen && (this.hover = false)
-        })
-    }
-
-    mouseup(e: MouseEvent) {
-        this.$slots.body || this.hover && sync.lock(async () => {
-            if (this.parentMenu.isOpen && !this.$slots.default)
-                sync.lock(async () => {
-                    this.sync || await this.flash()
-                    this.fire()
-                    e.shiftKey || this.parentMenu.close(true, true)
-                })
-        })
-    }
-}
-
-
-function sleep(duration: number) {
-    return new Promise(resolve => setTimeout(resolve, duration))
-}
 
 function assert(condition: boolean, message: string) {
-    if (!condition) {
-        throw new Error(message)
-    }
+    if (!condition) throw new Error(message)
 }

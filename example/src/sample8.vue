@@ -3,14 +3,14 @@
         <hsc-menu-style-metal>
             <hsc-menu-button-menu :menuZIndex="3">
                 <div class="box">button1</div>
-                <template slot="contextmenu">
+                <template #contextmenu>
                     <hsc-menu-item label="MenuItem 1" />
                     <hsc-menu-item label="MenuItem 2" />
                 </template>
             </hsc-menu-button-menu>
             <hsc-menu-button-menu :menuZIndex="3">
                 <div class="box" style="z-index: 2; position: relative;">button2</div>
-                <template slot="contextmenu">
+                <template #contextmenu>
                     <hsc-menu-item label="MenuItem 1" />
                     <hsc-menu-item label="MenuItem 2" />
                 </template>

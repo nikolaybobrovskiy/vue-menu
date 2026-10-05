@@ -1,4 +1,4 @@
-import Vue, * as vue from 'vue'
+import { createApp, type Component } from 'vue'
 import Sample1 from './sample1.vue'
 import Sample2 from './sample2/index.vue'
 import Sample3 from './sample3.vue'
@@ -10,11 +10,10 @@ import Sample8 from './sample8.vue'
 import * as hscMenu from "../../src"
 
 
-Vue.use(hscMenu)
 
 
 window.addEventListener('load', e => {
-    const Sample: vue.Component = ({
+    const Sample: Component = ({
         Sample1,
         Sample2,
         Sample3,
@@ -25,10 +24,7 @@ window.addEventListener('load', e => {
         Sample8,
     } as any)[location.search.substr(1)] || Sample1
 
-    new Vue({
-        el: emptyElement(),
-        render: h => h(Sample)
-    })
+    createApp(Sample).use(hscMenu).mount(emptyElement())
 })
 
 

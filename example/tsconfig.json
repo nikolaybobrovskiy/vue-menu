@@ -1,6 +1,6 @@
 {
     "extends": "../tsconfig.json",
     "include": [
-        "./src/**/*.ts"
+        "./src/**/*.ts", "./src/**/*.vue", "../src/sfc.ts"
     ]
 }

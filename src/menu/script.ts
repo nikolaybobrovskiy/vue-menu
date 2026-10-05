@@ -1,101 +1,93 @@
-import { MenuitemType } from "../menuitem/script"
-import { Vue, Component, Prop, Inject } from "vue-property-decorator"
-import { MenuCloseEvent } from "../event"
-import { MenuStyle, MENU_STYLE_KEY } from "../style"
-
+import { computed, defineComponent, inject, onBeforeUnmount, provide, ref, shallowRef, type PropType } from 'vue'
+import type { MenuitemType } from '../menuitem/script'
+import { EventBus, MenuCloseEvent, MenuitemActivateEvent } from '../event'
+import { MENU_STYLE_KEY, type MenuStyle, type Style } from '../style'
 
 export const PARENT_MENU_KEY = '@hscmap/vue-menu/parentMenu'
 export const PADDING = 4
 export type Direction = 'left' | 'right'
 
-
-@Component({
-    provide() { return { [PARENT_MENU_KEY]: this } }
-})
-export class MenuType extends Vue {
-    @Prop()
-    parentMenuitem?: MenuitemType
-
-    @Inject(MENU_STYLE_KEY)
-    menuStyle!: MenuStyle
-
-    isOpen = false
-    fade = 'none'
-    submenuDirection: Direction = 'right'
-
-    open(x: number, y: number, position: Direction = 'right') {
-        this.setPosition(x, y, position)
-        this.isOpen = true;
-    }
-
-    close(fade: boolean, parent = false) {
-        if (this.isOpen) {
-            this.fade = (fade && this.menuStyle.animation) ? 'fade' : 'none'
-            this.isOpen = false
-            fade || (this.menuElement().style.display = 'none') // vue synchronizes dom to vdom at several millisecond intervals
-            this.$emit(MenuCloseEvent.type, new MenuCloseEvent(parent))
-        }
-        if (parent && this.parentMenuitem) {
-            this.parentMenuitem.parentMenu.close(fade, true)
-        }
-    }
-
-    setPosition(x: number, y: number, direction: Direction) {
-        x = Math.floor(x)
-        y = Math.floor(y)
-
-        show([this.menuElement(), this.wrapperElement()], ([menu, wrapper]) => {
-            let rect = menu.getBoundingClientRect()
-
-            menu.style.maxHeight = `${window.innerHeight - 2 * PADDING}px`
-
-            wrapper.style.left = `${direction == 'right' ? x : x - rect.width + 1}px`
-            wrapper.style.top = `${y}px`
-
-            rect = menu.getBoundingClientRect()
-
-            if (rect.bottom > window.innerHeight) {
-                wrapper.style.top = `${window.innerHeight - rect.height}px`
-            }
-
-            this.submenuDirection = direction
-
-            if (rect.right > window.innerWidth) {
-                this.submenuDirection = 'left'
-                wrapper.style.left = `${x - rect.width - (this.parentMenuitem ? this.parentMenuitem.$el.clientWidth : 0)}px`
-            }
-            if (rect.left < 0) {
-                this.submenuDirection = 'right'
-                wrapper.style.left = `${x + (this.parentMenuitem ? this.parentMenuitem.$el.clientWidth : 0)}px`
-            }
-        })
-    }
-
-    menuElement() {
-        return <HTMLDivElement>this.$refs.menu
-    }
-
-    wrapperElement() {
-        return <HTMLDivElement>this.$refs.wrapper
-    }
-
-    get style() {
-        return { ...this.menuStyle.menu, padding: `${PADDING}px 0` }
-    }
+export interface MenuType {
+    readonly isOpen: boolean
+    readonly submenuDirection: Direction
+    open(x: number, y: number, direction?: Direction): void
+    close(fade: boolean, parent?: boolean): void
+    on<T>(event: string, handler: (value: T) => void): () => void
+    activateItem(item: MenuitemType): void
 }
 
+export const MenuType = defineComponent({
+    name: 'HscMenu',
+    props: { parentMenuitem: Object as PropType<MenuitemType> },
+    emits: ['menuclose'],
+    setup(props, { emit }) {
+        const menuStyle = inject<MenuStyle>(MENU_STYLE_KEY)!
+        const menu = shallowRef<HTMLDivElement>()
+        const wrapper = ref<HTMLDivElement>()
+        const isOpen = ref(false)
+        const fade = ref('none')
+        const submenuDirection = ref<Direction>('right')
+        const events = new EventBus()
+        function setPosition(x: number, y: number, direction: Direction) {
+            if (!menu.value || !wrapper.value) return
+            x = Math.floor(x)
+            y = Math.floor(y)
+            show([menu.value, wrapper.value], ([element, holder]) => {
+                let rect = element.getBoundingClientRect()
+                element.style.maxHeight = `${window.innerHeight - 2 * PADDING}px`
+                holder.style.left = `${direction === 'right' ? x : x - rect.width + 1}px`
+                holder.style.top = `${y}px`
+                rect = element.getBoundingClientRect()
+                if (rect.bottom > window.innerHeight) holder.style.top = `${window.innerHeight - rect.height}px`
+                submenuDirection.value = direction
+                if (rect.right > window.innerWidth) {
+                    submenuDirection.value = 'left'
+                    holder.style.left = `${x - rect.width - (props.parentMenuitem?.$el.clientWidth || 0)}px`
+                }
+                if (rect.left < 0) {
+                    submenuDirection.value = 'right'
+                    holder.style.left = `${x + (props.parentMenuitem?.$el.clientWidth || 0)}px`
+                }
+            })
+        }
+        function open(x: number, y: number, direction: Direction = 'right') {
+            setPosition(x, y, direction)
+            isOpen.value = true
+        }
+        function close(animate: boolean, parent = false) {
+            if (isOpen.value) {
+                fade.value = animate && menuStyle.animation ? 'fade' : 'none'
+                isOpen.value = false
+                if (!animate && menu.value) menu.value.style.display = 'none'
+                const event = new MenuCloseEvent(parent)
+                events.emit(MenuCloseEvent.type, event)
+                emit('menuclose', event)
+            }
+            if (parent) props.parentMenuitem?.parentMenu.close(animate, true)
+        }
+        const api: MenuType = {
+            get isOpen() { return isOpen.value },
+            get submenuDirection() { return submenuDirection.value },
+            open, close, on: events.on.bind(events),
+            activateItem(item) { events.emit(MenuitemActivateEvent.type, new MenuitemActivateEvent(item)) },
+        }
+        provide(PARENT_MENU_KEY, api)
+        onBeforeUnmount(() => events.clear())
+        return { menu, wrapper, isOpen, fade, submenuDirection, open, close, setPosition,
+            on: api.on, activateItem: api.activateItem,
+            menuElement: () => menu.value!, wrapperElement: () => wrapper.value!,
+            style: computed<Style>(() => ({ ...menuStyle.menu, padding: `${PADDING}px 0` })) }
+    },
+})
 
-function show(targets: HTMLElement[], cb: (els: HTMLElement[]) => void) {
-    const originalStyle = targets.map(target => {
+function show(targets: HTMLElement[], cb: (elements: HTMLElement[]) => void) {
+    const originals = targets.map(target => {
         const { display, visibility } = target.style
         target.style.display = 'block'
         target.style.visibility = 'visible'
         return { display, visibility }
     })
-    cb(targets)
-    targets.forEach((target, i) => {
-        const { display, visibility } = originalStyle[i]
-        target.style.display = display
-        target.style.visibility = visibility
-    })
+    try { cb(targets) } finally {
+        targets.forEach((target, i) => Object.assign(target.style, originals[i]))
+    }
 }

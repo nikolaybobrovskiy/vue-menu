@@ -1,8 +1,7 @@
-import Vue from 'vue'
-import * as vue from 'vue'
+import { defineComponent, h, provide, type CSSProperties } from 'vue'
 
 
-export type Style = Partial<CSSStyleDeclaration>
+export type Style = CSSProperties
 
 
 export interface MenuStyle {
@@ -18,23 +17,20 @@ export interface MenuStyle {
 export const MENU_STYLE_KEY = '@hscmap/vue-menu/menuStyle'
 
 
-export function StyleFactory(menuStyle: MenuStyle): vue.ComponentOptions<Vue> {
-    return {
-        provide() {
-            // for backward compatibility
-            if (menuStyle.animation == undefined) {
-                menuStyle.animation = true
-            }
-            return { [MENU_STYLE_KEY]: menuStyle }
+export function StyleFactory(menuStyle: MenuStyle) {
+    return defineComponent({
+        name: 'HscMenuStyle',
+        setup(_, { slots }) {
+            // Preserve the legacy default for custom themes.
+            if (menuStyle.animation === undefined) menuStyle.animation = true
+            provide(MENU_STYLE_KEY, menuStyle)
+            return () => h('div', slots.default?.())
         },
-        render(this: Vue, h: vue.CreateElement) {
-            return h('div', this.$slots.default)
-        }
-    }
+    })
 }
 
 
-export const StyleBlack: vue.ComponentOptions<Vue> = StyleFactory((() => {
+export const StyleBlack = StyleFactory((() => {
     const base: Style = {
         backgroundColor: 'rgba(31, 31, 31, 0.9)',
         color: 'white',
@@ -51,7 +47,7 @@ export const StyleBlack: vue.ComponentOptions<Vue> = StyleFactory((() => {
 })())
 
 
-export const StyleWhite: vue.ComponentOptions<Vue> = StyleFactory((() => {
+export const StyleWhite = StyleFactory((() => {
     const base: Style = {
         backgroundColor: 'rgba(255, 255, 255, 0.9)',
         color: 'black',
@@ -68,7 +64,7 @@ export const StyleWhite: vue.ComponentOptions<Vue> = StyleFactory((() => {
 })())
 
 
-export const StyleMetal: vue.ComponentOptions<Vue> = StyleFactory((() => {
+export const StyleMetal = StyleFactory((() => {
     const menubar: Style = {
         background: 'linear-gradient(to bottom, rgb(215, 215, 215), rgb(191, 191, 191))',
         color: 'black',

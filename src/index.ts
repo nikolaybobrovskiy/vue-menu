@@ -1,4 +1,4 @@
-import Vue from 'vue'
+import type { App } from 'vue'
 
 import Menubar from "./menubar/index.vue"
 import Menubaritem from "./menubaritem/index.vue"
@@ -10,7 +10,9 @@ import Separator from "./separator.vue"
 import { MenubarType } from "./menubar/script"
 import { MenuType } from "./menu/script"
 import { MenuitemType } from "./menuitem/script"
-import { MenuStyle, StyleFactory, StyleWhite, StyleBlack, StyleMetal } from "./style"
+import { StyleFactory, StyleWhite, StyleBlack, StyleMetal } from "./style"
+
+export type { MenuStyle, Style } from "./style"
 
 export {
     Menubar,
@@ -23,22 +25,21 @@ export {
     MenubarType,
     MenuType,
     MenuitemType,
-    MenuStyle,
     StyleFactory,
     StyleBlack,
     StyleWhite,
     StyleMetal,
 }
 
-export function install(vue: typeof Vue, options = { prefix: 'hsc-menu' }) {
-    const { prefix } = options
-    vue.component(`${prefix}-bar`, Menubar)
-    vue.component(`${prefix}-bar-item`, Menubaritem)
-    vue.component(`${prefix}-context-menu`, Contextmenu)
-    vue.component(`${prefix}-button-menu`, Buttonmenu)
-    vue.component(`${prefix}-item`, Menuitem)
-    vue.component(`${prefix}-separator`, Separator)
-    vue.component(`${prefix}-style-black`, StyleBlack)
-    vue.component(`${prefix}-style-white`, StyleWhite)
-    vue.component(`${prefix}-style-metal`, StyleMetal)
+export function install(app: App, options: { prefix?: string } = {}) {
+    const { prefix = 'hsc-menu' } = options
+    app.component(`${prefix}-bar`, Menubar)
+    app.component(`${prefix}-bar-item`, Menubaritem)
+    app.component(`${prefix}-context-menu`, Contextmenu)
+    app.component(`${prefix}-button-menu`, Buttonmenu)
+    app.component(`${prefix}-item`, Menuitem)
+    app.component(`${prefix}-separator`, Separator)
+    app.component(`${prefix}-style-black`, StyleBlack)
+    app.component(`${prefix}-style-white`, StyleWhite)
+    app.component(`${prefix}-style-metal`, StyleMetal)
 }

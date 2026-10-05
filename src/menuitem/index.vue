@@ -1,5 +1,5 @@
 <template>
-    <div>
+    <div ref="element">
         <x-keybinder v-if="keybind" :source="keybind" :enabled="!disabled" @keybindmatch="fire" />
         <div class="menuitem" :style="style" @mouseenter.stop="mouseenter" @mouseleave="mouseleave" @mouseup="mouseup" @mousedown.stop.prevent>
             <div style="padding: 0 0.3em;" :style="{ visibility: showCheckmark ? 'visible' : 'hidden' }">&check;</div>
@@ -12,7 +12,7 @@
                 <span v-html="keybindHTML" />
             </div>
             <div v-if="$slots.default">
-                <x-menu ref="childMenu" :parentMenuitem="this">
+                <x-menu ref="childMenu" :parentMenuitem="self">
                     <slot/>
                 </x-menu>
             </div>

@@ -5,40 +5,43 @@
   "main": "./lib/index.js",
   "types": "./lib/types/index.d.ts",
   "scripts": {
-    "prepare": "webpack --mode production ; npm run standalone",
+    "prepare": "npm run build && npm run standalone",
+    "build": "webpack --mode production && npm run build:types",
+    "build:types": "vue-tsc -p tsconfig.json --declaration --emitDeclarationOnly --outDir lib/types",
+    "typecheck": "vue-tsc --noEmit -p tsconfig.json && vue-tsc --noEmit -p example/tsconfig.json && vue-tsc --noEmit -p standalone/tsconfig.json && tsc --noEmit -p tests/tsconfig.json",
+    "test": "npm run build && node --test tests/*.test.cjs",
     "example": "webpack --context example --config ./example/webpack.config.js --mode production",
-    "example-server": "webpack-dev-server --hot --progress --context example --config ./example/webpack.config.js --mode development",
+    "example-server": "webpack serve --hot --progress --context example --config ./example/webpack.config.js --mode development",
     "standalone": "webpack --context standalone --config ./standalone/webpack.config.js --mode production",
-    "gh-pages": "npm run example && npm run standalone && cp standalone/dist/vue-menu-standalone.js example/dist && gh-pages -d example/dist"
+    "gh-pages": "npm run example && npm run standalone && cp standalone/dist/vue-menu-standalone.js example/dist && gh-pages -d example/dist",
+    "test:bundles": "npm run example && npm run standalone && node --test tests/bundles.cjs"
   },
   "peerDependencies": {
-    "vue": "^2.*"
+    "vue": "^3.5.0"
   },
   "dependencies": {
-    "@hscmap/keybind": "^0.2.0",
-    "es6-promise": "^4.2.8",
-    "tslib": "^2.3.1",
-    "vue-class-component": "^7.2.6",
-    "vue-property-decorator": "^9.1.2"
+    "@hscmap/keybind": "^0.2.0"
   },
   "devDependencies": {
     "autoprefixer": "^10.4.2",
     "css-loader": "^6.7.0",
     "file-loader": "^6.2.0",
-    "gh-pages": "^2.0.1",
+    "gh-pages": "^6.3.0",
+    "jsdom": "^26.1.0",
     "raw-loader": "^4.0.2",
     "sass": "^1.49.9",
-    "sass-loader": "^12.6.0",
+    "sass-loader": "^16.0.5",
     "style-loader": "^3.3.1",
     "ts-loader": "^9.2.7",
-    "typescript": "^4.6.2",
-    "vue-loader": "^15.9.8",
-    "vue-template-compiler": "^2.6.14",
+    "typescript": "^5.9.3",
+    "vue": "^3.5.43",
+    "vue-loader": "^17.4.2",
     "webpack": "^5.70.0",
-    "webpack-cli": "^4.9.2",
-    "webpack-dev-server": "^4.7.4",
-    "webpack-merge": "*",
-    "webpack-node-externals": "*"
+    "webpack-cli": "^6.0.1",
+    "webpack-dev-server": "^5.2.4",
+    "webpack-node-externals": "*",
+    "@vue/compiler-sfc": "^3.5.43",
+    "vue-tsc": "^3.2.6"
   },
   "keywords": [
     "Menu",
@@ -50,5 +53,11 @@
   "author": "Koike Michitaro",
   "license": "MIT",
   "homepage": "https://github.com/michitaro/vue-menu",
-  "repository": "github:michitaro/vue-menu"
+  "repository": "github:michitaro/vue-menu",
+  "files": [
+    "lib",
+    "standalone/dist",
+    "LICENSE",
+    "README.md"
+  ]
 }
